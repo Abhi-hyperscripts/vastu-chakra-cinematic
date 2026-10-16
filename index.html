@@ -110,12 +110,21 @@
   .pill { display: inline-flex; align-items: center; gap: 10px; height: 40px; padding: 0 20px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--fg); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 500; transition: border-color .4s, background-color .9s ease, color .9s ease, transform .25s cubic-bezier(.2,.8,.2,1), box-shadow .4s; will-change: transform; }
   .pill:hover { border-color: var(--gold); box-shadow: 0 10px 30px rgba(110,30,35,0.12); }
   .pill.primary { background: var(--btn-bg); color: var(--btn-fg); border-color: transparent; box-shadow: 0 14px 40px rgba(125,20,38,0.28); }
-  @media (max-width: 760px) { .nav .links a:not(.pill) { display: none; } }
+  .pill { white-space: nowrap; }
+  @media (max-width: 760px) {
+    .nav .links a:not(.pill) { display: none; }
+    .nav { padding-block: 12px; }
+    .brand small { display: none; } .brand .word { font-size: 1.3rem; }
+    .nav .links { gap: 8px; }
+    .pill { height: 36px; padding: 0 14px; font-size: 11px; }
+    #sound span { display: none; } #sound { padding: 0 12px; }
+  }
 
   /* page */
   main { position: relative; z-index: 2; }
   .wrap { padding-left: var(--gutter-l); padding-right: var(--gutter-r); }
   .chapter { min-height: 100vh; min-height: 100svh; display: flex; align-items: center; }
+  .chapter > * { min-width: 0; }
   .chapter.long { min-height: 150vh; min-height: 150svh; }
   .copy.right { margin-left: auto; margin-right: clamp(0px, 5vw, 96px); }
   @media (max-width: 760px) { .chapter.long { min-height: 125vh; min-height: 125svh; } .copy.right { margin-right: 0; } }
@@ -150,7 +159,9 @@
     .chapter { align-items: flex-end; }
     .copy { margin-left: 0; padding-block: 10vh 14vh; }
     .copy.scrim { position: relative; }
-    .copy.scrim::before { content: ""; position: absolute; inset: -40px -100vw -100px; background: linear-gradient(180deg, transparent 0%, var(--bg) 34%); opacity: 0.9; z-index: -1; pointer-events: none; transition: background .9s ease; }
+    .chapter { overflow: hidden; overflow: clip; }
+    .copy.scrim::before { content: ""; position: absolute; inset: -56px -100vw -72px; background: linear-gradient(180deg, transparent 0%, var(--bg) 30%, var(--bg) 82%, transparent 100%); opacity: 0.9; z-index: -1; pointer-events: none; transition: background .9s ease; }
+    .chapter > div:not(.scroll-hint) { min-width: 0; width: 100%; }
   }
 
   /* graph */
@@ -183,6 +194,13 @@
 
   footer { position: relative; z-index: 2; border-top: 1px solid var(--line); padding-block: 26px 34px; padding-left: var(--gutter-l); padding-right: var(--gutter-r); display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 24px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-2); background: var(--paper); transition: background-color .9s ease; }
   footer a:hover { color: var(--fg); }
+
+  @media (max-width: 760px) {
+    .features .head, .cards, .graph .panel { margin-left: 0; width: 100%; max-width: 100%; }
+    .cards { grid-template-columns: 1fr; }
+    h2 { font-size: clamp(2rem, 9vw, 2.6rem); }
+    .lede { font-size: 1rem; }
+  }
 
   @media (prefers-reduced-motion: reduce) {
     #preloader { animation-delay: 0.6s; animation-duration: 0.3s; }
@@ -1052,7 +1070,9 @@
     // camera
     var ct = sm / (KEY_POS.length - 1); posCurve.getPoint(ct, tmpP); lookCurve.getPoint(ct, tmpL);
     // phones: pull back and look lower so the instrument sits above the copy, and ignore the sideways framing rule
-    var zoom = Math.max(1, Math.min(2.0, 1.55 / camera.aspect)); if (camera.aspect < 0.9) { tmpL.x *= 0.25; } tmpP.sub(tmpL).multiplyScalar(zoom).add(tmpL); tmpL.y -= (zoom - 1) * 0.62;
+    var zoom = Math.max(1, Math.min(2.3, 1.6 / camera.aspect)), narrow = camera.aspect < 0.9;
+    if (narrow) { tmpL.x *= 0.2; tmpP.y += 0.5; } // phones: centre sideways, come in from a little higher
+    tmpP.sub(tmpL).multiplyScalar(zoom).add(tmpL); tmpL.y -= (zoom - 1) * (narrow ? 1.05 : 0.62); // and look lower so the instrument rides above the copy
     emx = lerp(emx, mx, 1 - Math.exp(-3 * dt)); emy = lerp(emy, my, 1 - Math.exp(-3 * dt)); tmpP.x += emx * 0.18; tmpP.y += emy * 0.12;
     if (!reduced) { tmpP.y += Math.sin(time * 0.5) * 0.03; tmpP.x += Math.cos(time * 0.37) * 0.03; }
     var introCam = easeOut(fit(it, 0, 4.6)); tmpP.y += (1 - introCam) * 2.2; tmpP.z += (1 - introCam) * 1.8; tmpP.x -= (1 - introCam) * 0.8;
@@ -1065,8 +1085,9 @@
     dustMat.uniforms.uTime.value = time; embMat.uniforms.uTime.value = time; finalPass.uniforms.uTime.value = time;
     // read every rect first, then write: interleaving reads and writes forces a layout per element
     for (i = 0; i < copies.length; i++) { var rr0 = copies[i].getBoundingClientRect(); copyMid[i] = rr0.top + rr0.height / 2; }
+    var refY = W < 760 ? H * 0.68 : H / 2; // phones pin the copy low in the frame, so judge "centred" against that line
     for (i = 0; i < copies.length; i++) {
-      var dd = (copyMid[i] - H / 2) / H, op = reduced ? 1 : 1 - clamp01(Math.abs(dd) * 1.5 - 0.25), ps = clamp01(1.25 - Math.abs(dd) * 2.2).toFixed(2), ops = op.toFixed(2);
+      var dd = (copyMid[i] - refY) / H, op = reduced ? 1 : 1 - clamp01(Math.abs(dd) * 1.5 - 0.25), ps = clamp01(1.25 - Math.abs(dd) * 2.2).toFixed(2), ops = op.toFixed(2);
       if (copyLast[i] !== ops + ps) { copyLast[i] = ops + ps; copies[i].style.opacity = ops; copies[i].style.transform = reduced ? 'none' : 'translate3d(0,' + (dd * 36).toFixed(1) + 'px,0)'; copies[i].style.setProperty('--p', ps); }
     }
     if (fpsEl) { fpsAcc += dt; fpsN++; if (fpsAcc > 0.5) { fpsEl.textContent = Math.round(fpsN / fpsAcc) + ' fps · tier ' + qualityTier + (bokeh && bokeh.enabled ? ' · dof' : '') + ' · dpr ' + DPR; fpsAcc = 0; fpsN = 0; } }
