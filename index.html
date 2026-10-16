@@ -71,8 +71,7 @@
   .no-gl::before { content: ""; position: fixed; inset: 0; z-index: 0; background: radial-gradient(55% 45% at 50% 42%, rgba(125,20,38,0.18), transparent 70%), var(--bg); }
 
   /* cursor */
-  #cursor { position: fixed; left: 0; top: 0; z-index: 60; width: 18px; height: 18px; margin: -9px 0 0 -9px; border: 1.5px solid var(--accent); border-radius: 50%; pointer-events: none; opacity: 0; transition: width .35s cubic-bezier(.2,.8,.2,1), height .35s cubic-bezier(.2,.8,.2,1), margin .35s cubic-bezier(.2,.8,.2,1), border-color .9s ease, background-color .35s ease, opacity .4s ease; mix-blend-mode: multiply; }
-  :root[data-phase="night"] #cursor { mix-blend-mode: screen; }
+  #cursor { position: fixed; left: 0; top: 0; z-index: 60; width: 18px; height: 18px; margin: -9px 0 0 -9px; border: 1.5px solid var(--accent); border-radius: 50%; pointer-events: none; opacity: 0; transition: width .35s cubic-bezier(.2,.8,.2,1), height .35s cubic-bezier(.2,.8,.2,1), margin .35s cubic-bezier(.2,.8,.2,1), border-color .9s ease, background-color .35s ease, opacity .4s ease; will-change: transform; }
   #cursor.on { opacity: 1; }
   #cursor.big { width: 54px; height: 54px; margin: -27px 0 0 -27px; background: rgba(217,178,106,0.18); border-color: var(--gold); }
   @media (hover: none) { #cursor { display: none; } }
@@ -155,7 +154,7 @@
 
   /* graph */
   .graph { min-height: auto; padding-block: 14vh; }
-  .panel { width: min(62rem, 100%); margin-left: clamp(0px, 5vw, 96px); background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: clamp(18px, 3vw, 34px); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: 0 30px 80px rgba(110,30,35,0.10); transition: background-color .9s ease, border-color .9s ease; }
+  .panel { width: min(62rem, 100%); margin-left: clamp(0px, 5vw, 96px); background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: clamp(18px, 3vw, 34px); box-shadow: 0 30px 80px rgba(110,30,35,0.10); transition: background-color .9s ease, border-color .9s ease; }
   .graph .panel { background: color-mix(in srgb, var(--paper) 88%, transparent); width: min(56rem, 100%); }
   .graph header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px 20px; margin-bottom: 14px; }
   .graph header h3 { font-family: var(--display); font-size: 1.6rem; font-weight: 600; color: var(--fg); margin: 0; }
@@ -174,7 +173,7 @@
   .features { min-height: auto; padding-block: 12vh; }
   .features .head { width: min(34rem, 100%); margin-left: clamp(0px, 5vw, 96px); margin-bottom: 40px; }
   .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin-left: clamp(0px, 5vw, 96px); max-width: 68rem; }
-  .card { min-width: 0; padding: 26px 24px 24px; border-radius: 22px; background: var(--card); border: 1px solid var(--line); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); transition: transform .5s cubic-bezier(0.2,0.8,0.2,1), border-color .5s, box-shadow .5s, background-color .9s ease; }
+  .card { min-width: 0; padding: 26px 24px 24px; border-radius: 22px; background: color-mix(in srgb, var(--paper) 86%, transparent); border: 1px solid var(--line); transition: transform .5s cubic-bezier(0.2,0.8,0.2,1), border-color .5s, box-shadow .5s, background-color .9s ease; }
   .card:hover { transform: translateY(-5px); border-color: var(--gold); box-shadow: 0 24px 60px rgba(110,30,35,0.14); }
   .card svg { width: 26px; height: 26px; stroke: var(--accent); fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
   .card h4 { font-family: var(--display); font-size: 1.45rem; font-weight: 600; color: var(--fg); margin: 18px 0 8px; line-height: 1.1; }
@@ -486,10 +485,16 @@
   var canvas = document.getElementById('gl'), renderer;
   try { renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: false, alpha: false, powerPreference: 'high-performance' }); } catch (e) { renderer = null; }
   if (!renderer) { root.classList.add('no-gl'); return; }
-  var DPR = Math.min(window.devicePixelRatio || 1, 1.5);
+  // device tier up front: few cores, little memory, a phone or a virtual GPU start lean; the adaptive step-down still runs after that
+  var cores = navigator.hardwareConcurrency || 4, mem = navigator.deviceMemory || 8;
+  var glInfo = (function () { try { var gl = renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info'); return ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : ''; } catch (e) { return ''; } })();
+  var softGpu = /SwiftShader|llvmpipe|Software|Parallels|VirtualBox|VMware|Basic Render/i.test(glInfo);
+  var lowEnd = isMobile || cores <= 4 || mem <= 4 || softGpu;
+  var DPR = lowEnd ? 1 : Math.min(window.devicePixelRatio || 1, 1.5);
+  var SHADOW = lowEnd ? 1024 : 2048;
   renderer.setPixelRatio(DPR);
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
-  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = lowEnd ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
 
   var scene = new THREE.Scene();
   var camera = new THREE.PerspectiveCamera(30, 1, 0.1, 40);
@@ -502,7 +507,7 @@
   // lights
   var hemi = new THREE.HemisphereLight(lin('#fff6e8'), lin('#7d1426'), 0.75); scene.add(hemi);
   var key = new THREE.DirectionalLight(lin('#fff3e0'), 1.3); key.position.set(4.4, 4.2, 3.0); key.castShadow = true;
-  key.shadow.mapSize.set(isMobile ? 1024 : 2048, isMobile ? 1024 : 2048); key.shadow.camera.near = 1; key.shadow.camera.far = 16;
+  key.shadow.mapSize.set(SHADOW, SHADOW); key.shadow.camera.near = 1; key.shadow.camera.far = 16;
   key.shadow.camera.left = key.shadow.camera.bottom = -2.4; key.shadow.camera.right = key.shadow.camera.top = 2.4; key.shadow.bias = -0.0006; key.shadow.normalBias = 0.02; key.shadow.radius = 4;
   scene.add(key); scene.add(key.target);
   var fill = new THREE.DirectionalLight(lin('#eaa9b0'), 0.35); fill.position.set(-4, 2.5, -3); scene.add(fill);
@@ -758,7 +763,7 @@
   (function () { var q = onRing(brg(DOOR_BEARING), 1.26); mark.position.set(q[0], 0.07, -q[1]); mark.scale.set(0.26, 0.13, 1); scene.add(mark); })();
 
   // dust: condenses onto the ring, then drifts; pushed away by the cursor
-  var DUST = isMobile ? 1400 : 2600, dStart = [], dTarget = [], dRand = [];
+  var DUST = lowEnd ? 1200 : 2600, dStart = [], dTarget = [], dRand = [];
   for (var n = 0; n < DUST; n++) {
     var u = Math.random(), v = Math.random(), th = u * Math.PI * 2, ph = Math.acos(2 * v - 1), rr = 1.6 + Math.cbrt(Math.random()) * 2.4;
     dStart.push(rr * Math.sin(ph) * Math.cos(th), rr * Math.sin(ph) * Math.sin(th) * 0.6 + 0.9, rr * Math.cos(ph));
@@ -775,7 +780,7 @@
   });
   var dust = new THREE.Points(dustGeo, dustMat); scene.add(dust);
   // embers: only at night
-  var EMB = isMobile ? 500 : 900, ePos = [], eRand = [];
+  var EMB = lowEnd ? 450 : 900, ePos = [], eRand = [];
   for (n = 0; n < EMB; n++) { var ra = Math.random() * Math.PI * 2, rd = Math.sqrt(Math.random()) * 3.6; ePos.push(Math.cos(ra) * rd, 0, Math.sin(ra) * rd); eRand.push(Math.random(), Math.random()); }
   var embGeo = new THREE.BufferGeometry(); embGeo.setAttribute('position', new THREE.Float32BufferAttribute(ePos, 3)); embGeo.setAttribute('aRand', new THREE.Float32BufferAttribute(eRand, 2));
   var embMat = new THREE.ShaderMaterial({
@@ -790,7 +795,7 @@
   var composer = new THREE.EffectComposer(renderer);
   composer.addPass(new THREE.RenderPass(scene, camera));
   var bokeh = null;
-  if (!isMobile) { bokeh = new THREE.BokehPass(scene, camera, { focus: 4, aperture: 0.0032, maxblur: 0.0055, width: 1, height: 1 }); composer.addPass(bokeh); }
+  if (!lowEnd) { bokeh = new THREE.BokehPass(scene, camera, { focus: 4, aperture: 0.0032, maxblur: 0.0055, width: 1, height: 1 }); composer.addPass(bokeh); }
   var bloom = new THREE.UnrealBloomPass(new THREE.Vector2(1, 1), 0.3, 0.6, 0.92); composer.addPass(bloom);
   var finalPass = new THREE.ShaderPass({
     uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uDark: { value: 0 } },
@@ -915,11 +920,14 @@
   var mx = 0, my = 0, emx = 0, emy = 0, ray = new THREE.Raycaster(), groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), mouseNdc = new THREE.Vector2(), hit = new THREE.Vector3();
   var tip = document.getElementById('tip'), hovered = -1, rawNdc = new THREE.Vector2(), mousePx = { x: -1, y: -1 }, hoverRay = new THREE.Raycaster();
   window.addEventListener('mousemove', function (e) { mx = (e.clientX / W) * 2 - 1; my = 1 - (e.clientY / H) * 2; mousePx.x = e.clientX; mousePx.y = e.clientY; }, { passive: true });
+  var hoverMx = 99, hoverMy = 99, hoverVis = [];
   function updateHover() {
     if (!fine || mousePx.x < 0) return;
+    if (Math.abs(mx - hoverMx) < 0.002 && Math.abs(my - hoverMy) < 0.002 && sm === sm) { if (hovered >= 0) tip.style.transform = 'translate(' + (mousePx.x + 16) + 'px,' + (mousePx.y + 16) + 'px)'; return; }
+    hoverMx = mx; hoverMy = my;
     rawNdc.set(mx, my); hoverRay.setFromCamera(rawNdc, camera);
-    var vis = wedges.filter(function (w2) { return w2.visible && w2.material.opacity > 0.5; });
-    var hits = vis.length ? hoverRay.intersectObjects(vis, false) : [], idx = hits.length ? hits[0].object.userData.index : -1;
+    hoverVis.length = 0; for (var hv = 0; hv < 16; hv++) if (wedges[hv].visible && wedges[hv].material.opacity > 0.5) hoverVis.push(wedges[hv]);
+    var hits = hoverVis.length ? hoverRay.intersectObjects(hoverVis, false) : [], idx = hits.length ? hits[0].object.userData.index : -1;
     if (idx !== hovered) {
       hovered = idx;
       if (idx >= 0) { tip.innerHTML = '<b>' + ZONES[idx] + '</b> · ' + ELEMENT[idx] + ' · ' + AREAS[idx].toFixed(1) + ' sq ft · ' + verdict(idx); tip.classList.add('on'); } else tip.classList.remove('on');
@@ -931,25 +939,30 @@
   var slowFrames = 0, qualityTier = 0;
   function adapt(dt) {
     slowFrames = dt > 0.034 ? slowFrames + 1 : Math.max(0, slowFrames - 1);
-    if (slowFrames < 110) return; slowFrames = 0; qualityTier++;
-    if (qualityTier === 1 && bokeh) bokeh.enabled = false;
-    else if (qualityTier === 2) { DPR = 1; renderer.setPixelRatio(1); resize(); }
-    else if (qualityTier === 3) { key.shadow.mapSize.set(1024, 1024); if (key.shadow.map) { key.shadow.map.dispose(); key.shadow.map = null; } }
+    if (slowFrames < 45 || qualityTier >= 4) return; slowFrames = 0; qualityTier++;
+    if (qualityTier === 1) { if (bokeh && bokeh.enabled) bokeh.enabled = false; else qualityTier++; }
+    if (qualityTier === 2) { if (DPR > 1) { DPR = 1; renderer.setPixelRatio(1); resize(); } else qualityTier++; }
+    if (qualityTier === 3) { if (SHADOW > 1024) { SHADOW = 1024; key.shadow.mapSize.set(1024, 1024); if (key.shadow.map) { key.shadow.map.dispose(); key.shadow.map = null; } renderer.shadowMap.type = THREE.PCFShadowMap; } else qualityTier++; }
+    if (qualityTier === 4) { bloom.enabled = false; scene.fog.density *= 1; }
   }
 
   // frame
-  var sm = 0, smV = 0, last = performance.now(), introStart = -1, time = 0, dark = 0, phaseNight = false, northLocked = false;
+  var sm = 0, smV = 0, last = performance.now(), introStart = -1, time = 0, dark = 0, phaseNight = false, northLocked = false, lastAxisLen = -1;
   // precompile every shader, including the pieces that are hidden until later, while the preloader is still up
   (function precompile() {
     var hidden = []; scene.traverse(function (o) { if (o.visible === false) { hidden.push(o); o.visible = true; } });
     try { renderer.compile(scene, camera); } catch (e) {}
+    // push every texture to the GPU now, so the first time a sheet or dial appears it does not stall the frame
+    try { scene.traverse(function (o) { var m = o.material; if (!m) return; [].concat(m).forEach(function (mm) { ['map', 'emissiveMap'].forEach(function (k) { if (mm[k]) renderer.initTexture(mm[k]); }); if (mm.uniforms) for (var u in mm.uniforms) { var v = mm.uniforms[u].value; if (v && v.isTexture) renderer.initTexture(v); } }); }); } catch (e) {}
     hidden.forEach(function (o) { o.visible = false; });
   })();
   var lerp = function (a, b, t) { return a + (b - a) * t; }, clamp01 = function (v) { return v < 0 ? 0 : v > 1 ? 1 : v; };
   var fit = function (v, a, b) { return clamp01((v - a) / (b - a)); }, easeOut = function (t) { return 1 - Math.pow(1 - t, 3); }, easeInOut = function (t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; };
   var tmpP = new THREE.Vector3(), tmpL = new THREE.Vector3();
-  var copies = Array.prototype.slice.call(document.querySelectorAll('.chapter:not(.hero) .copy, .features .head, .graph .panel'));
+  var copies = Array.prototype.slice.call(document.querySelectorAll('.chapter:not(.hero) .copy, .features .head, .graph .panel')), copyMid = [], copyLast = [];
   var railLinks = Array.prototype.slice.call(document.querySelectorAll('#rail a'));
+  var fpsEl = null, fpsAcc = 0, fpsN = 0;
+  if (/debug/.test(location.search)) { fpsEl = document.createElement('div'); fpsEl.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:99;font:11px/1 monospace;color:#fff;background:rgba(0,0,0,.6);padding:6px 8px;border-radius:6px'; document.body.appendChild(fpsEl); }
 
   function frame() {
     requestAnimationFrame(frame);
@@ -1004,7 +1017,7 @@
     // 2: door + axis
     doorMat.opacity = s2 * 0.95; var dp = (time * 0.9) % 1; doorPulse.scale.setScalar(1 + dp * 4); doorPulse.material.opacity = s2 * (1 - dp) * 0.6;
     var axisLen = easeOut(fit(s2, 0.25, 1)); axisMat.opacity = Math.min(1, axisLen * 1.5) * 0.9; arrowMat.opacity = fit(s2, 0.85, 1);
-    axis.geometry.attributes.position.setXYZ(2, 0, lerp(-0.5, 0.98, axisLen), 0.17); axis.geometry.attributes.position.needsUpdate = true; axis.computeLineDistances(); arrow.position.y = lerp(-0.5, 0.98, axisLen);
+    if (Math.abs(axisLen - lastAxisLen) > 0.002) { lastAxisLen = axisLen; axis.geometry.attributes.position.setXYZ(2, 0, lerp(-0.5, 0.98, axisLen), 0.17); axis.geometry.attributes.position.needsUpdate = true; axis.computeLineDistances(); arrow.position.y = lerp(-0.5, 0.98, axisLen); }
     // 3: lock North
     house.rotation.z = -brg(DOOR_BEARING) * easeInOut(s3);
     needle.material.opacity = fit(s(4), 0.55, 0.95); needle.userData.under.material.opacity = needle.material.opacity * 0.45;
@@ -1039,11 +1052,13 @@
 
     // uniforms, copy reveal, cursor
     dustMat.uniforms.uTime.value = time; embMat.uniforms.uTime.value = time; finalPass.uniforms.uTime.value = time;
+    // read every rect first, then write: interleaving reads and writes forces a layout per element
+    for (i = 0; i < copies.length; i++) { var rr0 = copies[i].getBoundingClientRect(); copyMid[i] = rr0.top + rr0.height / 2; }
     for (i = 0; i < copies.length; i++) {
-      var r = copies[i].getBoundingClientRect(), dd = ((r.top + r.height / 2) - H / 2) / H, op = reduced ? 1 : 1 - clamp01(Math.abs(dd) * 1.5 - 0.25);
-      copies[i].style.opacity = op.toFixed(3); copies[i].style.transform = reduced ? 'none' : 'translate3d(0,' + (dd * 36).toFixed(1) + 'px,0)';
-      copies[i].style.setProperty('--p', clamp01(1.25 - Math.abs(dd) * 2.2).toFixed(3));
+      var dd = (copyMid[i] - H / 2) / H, op = reduced ? 1 : 1 - clamp01(Math.abs(dd) * 1.5 - 0.25), ps = clamp01(1.25 - Math.abs(dd) * 2.2).toFixed(2), ops = op.toFixed(2);
+      if (copyLast[i] !== ops + ps) { copyLast[i] = ops + ps; copies[i].style.opacity = ops; copies[i].style.transform = reduced ? 'none' : 'translate3d(0,' + (dd * 36).toFixed(1) + 'px,0)'; copies[i].style.setProperty('--p', ps); }
     }
+    if (fpsEl) { fpsAcc += dt; fpsN++; if (fpsAcc > 0.5) { fpsEl.textContent = Math.round(fpsN / fpsAcc) + ' fps · tier ' + qualityTier + (bokeh && bokeh.enabled ? ' · dof' : '') + ' · dpr ' + DPR; fpsAcc = 0; fpsN = 0; } }
     if (fine) { cxe = lerp(cxe, cx, 1 - Math.exp(-14 * dt)); cye = lerp(cye, cy, 1 - Math.exp(-14 * dt)); cursor.style.transform = 'translate3d(' + cxe.toFixed(1) + 'px,' + cye.toFixed(1) + 'px,0)'; cursor.classList.toggle('big', cursorBig); }
     composer.render();
   }
