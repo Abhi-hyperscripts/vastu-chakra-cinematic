@@ -1003,7 +1003,8 @@
     var sy = window.scrollY || window.pageYOffset, c = sy + H / 2, tIdx = 0;
     if (centers.length > 1) {
       if (c <= centers[0]) tIdx = 0; else if (c >= centers[centers.length - 1]) tIdx = centers.length - 1;
-      else for (var i = 0; i < centers.length - 1; i++) if (c >= centers[i] && c <= centers[i + 1]) { tIdx = i + (c - centers[i]) / (centers[i + 1] - centers[i]); break; }
+      else for (var i = 0; i < centers.length - 1; i++) if (c >= centers[i] && c <= centers[i + 1]) { tIdx = i + (centers[i + 1] > centers[i] ? (c - centers[i]) / (centers[i + 1] - centers[i]) : 0); break; }
+      if (tIdx !== tIdx) tIdx = 0;
     }
     // a second-order spring on the chapter index: the camera and every landing part overshoot a little and settle
     if (reduced) sm = tIdx;
@@ -1068,7 +1069,7 @@
     updateMachine(dt, sy);
 
     // camera
-    var ct = sm / (KEY_POS.length - 1); posCurve.getPoint(ct, tmpP); lookCurve.getPoint(ct, tmpL);
+    var ct = clamp01(sm / (KEY_POS.length - 1)); posCurve.getPoint(ct, tmpP); // clamped: the spring overshoots past both ends and the curve cannot extrapolate lookCurve.getPoint(ct, tmpL);
     // phones: pull back and look lower so the instrument sits above the copy, and ignore the sideways framing rule
     var zoom = Math.max(1, Math.min(2.3, 1.6 / camera.aspect)), narrow = camera.aspect < 0.9;
     if (narrow) { tmpL.x *= 0.2; tmpP.y += 0.5; } // phones: centre sideways, come in from a little higher
